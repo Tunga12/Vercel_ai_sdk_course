@@ -8,9 +8,10 @@ Build a complete streaming chat experience using the Vercel AI SDK:
 2. **Frontend:** Use the `Chat` class from `@ai-sdk/angular` to display streaming messages
 
 **What you'll learn:**
-- How `streamText` works and how to pipe responses to the client
+- How `streamText` works and streams responses to the client
 - How the `Chat` class manages conversations and streaming state
-- How messages flow between frontend and backend
+- Understanding the `UIMessage` structure with parts
+- How to handle status, errors, and user interactions
 
 ---
 
@@ -35,21 +36,21 @@ You've been given:
 
 # Part 1: Backend (AI SDK Core)
 
-## Step 1: Set Up the Chat Endpoint
+The backend creates a streaming endpoint that the frontend `Chat` class will connect to.
 
-Open `src/server.ts`. You'll see a basic Express setup.
+## Step 1: Import the AI SDK
 
-First, add the imports you need at the top:
+Open `src/server.ts`. Add the imports at the top:
 
 ```typescript
 import { google } from '@ai-sdk/google';
-import { streamText, convertToModelMessages } from 'ai';
+import { streamText, UIMessage } from 'ai';
 ```
 
 **What these do:**
 - `google` - Provider that connects to Google's Gemini models
 - `streamText` - Core function that streams text from any LLM
-- `convertToModelMessages` - Converts frontend message format to what models expect
+- `UIMessage` - Type definition for the message format used by the Chat class
 
 ---
 
@@ -59,11 +60,11 @@ Add a POST endpoint that receives messages and streams back a response:
 
 ```typescript
 app.post('/api/chat', async (req, res) => {
-  const { messages } = req.body;
+  const { messages }: { messages: UIMessage[] } = req.body;
 
   const result = streamText({
     model: google('gemini-2.0-flash-lite'),
-    messages: convertToModelMessages(messages),
+    messages,
   });
 
   result.pipeUIMessageStreamToResponse(res);
@@ -72,24 +73,27 @@ app.post('/api/chat', async (req, res) => {
 
 **Let's break this down:**
 
-1. **`req.body.messages`** - The frontend sends the full conversation history
-2. **`streamText()`** - Starts streaming from the LLM. Key options:
-   - `model` - Which LLM to use (we're using Gemini)
-   - `messages` - The conversation history
-3. **`convertToModelMessages()`** - Transforms UI message format → model format
-4. **`pipeUIMessageStreamToResponse()`** - Streams the response back in a format the frontend `Chat` class understands
+| Code | What it does |
+|------|--------------|
+| `messages: UIMessage[]` | The frontend sends the full conversation history in UI message format |
+| `streamText()` | Starts streaming from the LLM |
+| `model` | Which LLM provider and model to use |
+| `messages` | The conversation history (UIMessage format works directly!) |
+| `pipeUIMessageStreamToResponse()` | Streams the response in the format the `Chat` class expects |
+
+> 💡 **Note:** In AI SDK 5, `UIMessage` format can be passed directly to `streamText()` — no conversion needed for simple text messages!
 
 ---
 
-## Step 3: Add a System Prompt (Optional but Recommended)
+## Step 3: Add a System Prompt
 
-Give your AI a personality or instructions:
+Give your AI instructions or a personality:
 
 ```typescript
 const result = streamText({
   model: google('gemini-2.0-flash-lite'),
   system: 'You are a helpful assistant. Keep responses concise and friendly.',
-  messages: convertToModelMessages(messages),
+  messages,
 });
 ```
 
@@ -110,10 +114,10 @@ Test with curl:
 ```bash
 curl -X POST http://localhost:3000/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"Say hello!"}]}'
+  -d '{"messages":[{"role":"user","parts":[{"type":"text","text":"Say hello!"}]}]}'
 ```
 
-You should see streamed response chunks in your terminal.
+You should see streamed response data in your terminal.
 
 ---
 
@@ -141,6 +145,7 @@ That's it! The `Chat` class automatically:
 - Connects to `/api/chat` by default
 - Manages conversation history
 - Handles the streaming protocol
+- Exposes reactive properties for your template
 
 ---
 
@@ -161,6 +166,7 @@ sendMessage() {
 **What's happening:**
 - `chat.sendMessage({ text: '...' })` sends a user message to your `/api/chat` endpoint
 - The `Chat` class adds it to `chat.messages` and handles the streaming response
+- Messages update reactively as the stream arrives
 
 ---
 
@@ -184,10 +190,23 @@ Find the messages container and add:
 </div>
 ```
 
-**Understanding the message structure:**
-- `message.role` → `'user'` or `'assistant'`
-- `message.parts` → Array of content (text, reasoning, tool calls, etc.)
-- `part.type === 'text'` → The actual text content
+**Understanding the UIMessage structure:**
+
+```typescript
+interface UIMessage {
+  id: string;                    // Unique message ID
+  role: 'user' | 'assistant';    // Who sent it
+  parts: UIMessagePart[];        // Content parts
+}
+
+interface UIMessagePart {
+  type: 'text' | 'reasoning' | 'tool-invocation' | 'file' | ...;
+  text?: string;                 // For text parts
+  state?: 'streaming' | 'complete';  // Streaming status
+}
+```
+
+Messages use a **parts-based structure** because AI responses can contain multiple types of content (text, reasoning, tool calls, files, etc.).
 
 ---
 
@@ -203,12 +222,16 @@ You should see:
 
 ---
 
-## Step 9: Add Loading State
+## Step 9: Handle Status States
 
-The `Chat` class exposes a `status` property:
-- `'ready'` - Idle, accepting input
-- `'submitted'` - Waiting for first token
-- `'streaming'` - Response coming in
+The `Chat` class exposes a `status` property that tracks the request lifecycle:
+
+| Status | Meaning |
+|--------|---------|
+| `'ready'` | Idle, ready for input |
+| `'submitted'` | Request sent, waiting for first token |
+| `'streaming'` | Response is streaming in |
+| `'error'` | Something went wrong |
 
 Add a loading indicator:
 
@@ -224,7 +247,7 @@ Add a loading indicator:
 
 ## Step 10: Add Stop Button
 
-Let users cancel mid-stream:
+Let users cancel mid-stream using the `stop()` method:
 
 ```html
 @if (chat.status === 'ready') {
@@ -246,9 +269,9 @@ Let users cancel mid-stream:
 
 ---
 
-## Bonus: Typing Cursor
+## Bonus 1: Typing Cursor
 
-Each message part has a `state` property (`'streaming'` or `'complete'`).
+Each message part has a `state` property that indicates if it's still streaming.
 
 Add a cursor while streaming:
 
@@ -265,25 +288,58 @@ Add a cursor while streaming:
 
 ---
 
+## Bonus 2: Error Handling
+
+The `Chat` class exposes an `error` property when something goes wrong:
+
+```html
+@if (chat.error) {
+  <div class="error">
+    Something went wrong: {{ chat.error.message }}
+    <button (click)="chat.reload()">Retry</button>
+  </div>
+}
+```
+
+---
+
+## Bonus 3: Event Callbacks
+
+Add callbacks to the Chat constructor for logging or analytics:
+
+```typescript
+chat = new Chat({
+  onFinish: (event) => {
+    console.log('Response complete:', event.message);
+  },
+  onError: (error) => {
+    console.error('Chat error:', error);
+  },
+});
+```
+
+---
+
 ## Quick Reference
 
 ### Backend: streamText
 
 ```typescript
-import { streamText, convertToModelMessages } from 'ai';
+import { streamText, UIMessage } from 'ai';
 import { google } from '@ai-sdk/google';
 
-const result = streamText({
-  model: google('gemini-2.0-flash-lite'),
-  system: 'You are a helpful assistant.',  // Optional
-  messages: convertToModelMessages(messages),
+app.post('/api/chat', async (req, res) => {
+  const { messages }: { messages: UIMessage[] } = req.body;
+
+  const result = streamText({
+    model: google('gemini-2.0-flash-lite'),
+    system: 'You are a helpful assistant.',  // Optional
+    messages,
+  });
+
+  // Stream to response (for Chat class)
+  result.pipeUIMessageStreamToResponse(res);
 });
-
-// Stream to response (for Chat class)
-result.pipeUIMessageStreamToResponse(res);
-
-// Or stream raw text (for Completion class)
-result.pipeTextStreamToResponse(res);
 ```
 
 ### Frontend: Chat Class
@@ -293,33 +349,45 @@ import { Chat } from '@ai-sdk/angular';
 
 chat = new Chat({
   api: '/api/chat',  // Optional, this is the default
+  onFinish: (event) => { /* handle completion */ },
+  onError: (error) => { /* handle errors */ },
 });
 
-// Properties
-chat.messages    // Array of all messages
+// Properties (reactive)
+chat.messages    // UIMessage[] - conversation history
 chat.status      // 'ready' | 'submitted' | 'streaming' | 'error'
 chat.error       // Error object if failed
 
 // Methods
-chat.sendMessage({ text: 'Hello' })  // Send message
+chat.sendMessage({ text: 'Hello' })  // Send user message
 chat.stop()                           // Cancel streaming
+chat.reload()                         // Retry last message
+chat.setMessages([])                  // Clear/set messages
 ```
 
-### Message Structure
+### UIMessage Structure
 
 ```typescript
 {
-  id: 'msg_123',
+  id: 'msg_abc123',
   role: 'user' | 'assistant',
   parts: [
     {
       type: 'text',
-      text: 'Hello!',
-      state: 'streaming' | 'complete'
+      text: 'Hello, world!',
+      state: 'streaming' | 'complete'  // Only during streaming
     }
   ]
 }
 ```
+
+---
+
+## Further Reading
+
+- [AI SDK UI: Chatbot](https://ai-sdk.dev/docs/ai-sdk-ui/chatbot) - Full documentation
+- [AI SDK Core: streamText](https://ai-sdk.dev/docs/ai-sdk-core/generating-text) - Backend streaming
+- [Message Persistence](https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-message-persistence) - Saving chats
 
 ---
 

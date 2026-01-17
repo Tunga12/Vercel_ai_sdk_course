@@ -9,7 +9,7 @@ A simple chat application built with Angular that connects to OpenAI models usin
 pnpm install
 
 # Create .env file with your OpenAI API key
-echo "OPENAI_API_KEY=your_key_here" > .env
+echo "GOOGLE_GENERATIVE_AI_API_KEY=your_key_here" > .env
 
 # Start the app
 pnpm start

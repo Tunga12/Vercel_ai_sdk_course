@@ -1,5 +1,5 @@
 import { google } from '@ai-sdk/google';
-import { convertToModelMessages, streamObject, streamText } from 'ai';
+import { convertToModelMessages, Output, streamText } from 'ai';
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import z from 'zod';
@@ -31,13 +31,15 @@ app.post('/api/completion', async (req: Request, res: Response) => {
 app.post('/api/analyze', express.raw(), async (req: Request, res: Response) => {
   const input = req.body.toString('utf8');
 
-  const result = streamObject({
+  const result = streamText({
     model: google('gemini-2.5-flash-lite'),
-    schema: z.object({
-      title: z.string(),
-      summary: z.string(),
-      tags: z.array(z.string()),
-      sentiment: z.enum(['positive', 'negative', 'neutral']),
+    output: Output.object({
+      schema: z.object({
+        title: z.string(),
+        summary: z.string(),
+        tags: z.array(z.string()),
+        sentiment: z.enum(['positive', 'negative', 'neutral']),
+      })
     }),
     prompt: `Analyze this content: ${input}`,
   });

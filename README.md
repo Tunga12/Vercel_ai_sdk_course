@@ -21,7 +21,7 @@ This runs both the Angular frontend (localhost:4200) and Express backend (localh
 
 - Angular 19
 - Express.js backend
-- AI SDK (@ai-sdk/angular, @ai-sdk/openai)
+- AI SDK (@ai-sdk/angular, @ai-sdk/google)
 - OpenAI GPT models
 
 ## Features

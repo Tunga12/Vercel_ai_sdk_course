@@ -14,6 +14,14 @@ Build a complete streaming chat experience using the Vercel AI SDK:
 
 ---
 
+## Prerequisites
+
+- Node.js 18+ installed
+- Google AI API key configured — [Setup Guide](./00-setup-google-ai.md)
+- Dependencies installed (`pnpm install`)
+
+---
+
 ## Your Starting Point
 
 You've been given:

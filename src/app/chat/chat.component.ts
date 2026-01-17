@@ -1,49 +1,30 @@
-import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import {
-  FormBuilder,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
-import { Chat } from '@ai-sdk/angular';
+import { Component, ElementRef, viewChild } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+
+// TODO: Import the Chat class from @ai-sdk/angular
+// import { Chat } from '@ai-sdk/angular';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [FormsModule],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.css',
 })
 export class ChatComponent {
-  private fb = inject(FormBuilder);
-  public chat: Chat = new Chat({});
+  inputField = viewChild<ElementRef<HTMLInputElement>>('inputField');
 
-  chatForm: FormGroup;
-
-  constructor() {
-    this.chatForm = this.fb.group({
-      userInput: ['', Validators.required],
-    });
-  }
+  // TODO: Create an instance of the Chat class
+  // chat = new Chat({});
 
   sendMessage() {
-    if (this.chatForm.invalid) {
-      return;
-    }
+    const input = this.inputField()?.nativeElement;
+    if (!input || !input.value.trim()) return;
 
-    const userInput = this.chatForm.value.userInput;
-    this.chatForm.reset();
+    // TODO: Send the message using chat.sendMessage()
+    // Don't forget to clear the input after sending!
 
-    this.chat.sendMessage(
-      {
-        text: userInput,
-      },
-      {
-        body: {
-          selectedModel: 'gemini-2.5-flash-lite',
-        },
-      },
-    );
+    console.log('Message to send:', input.value);
+    input.value = '';
   }
 }
